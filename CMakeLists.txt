@@ -45,5 +45,5 @@ target_link_libraries(depends PUBLIC
 )
 
 # 5. Final Executable
-add_executable(${PROJECT_NAME} "${CODE}/main.cpp")
+add_executable(${PROJECT_NAME} "${CODE}/gerstner.cpp")
 target_link_libraries(${PROJECT_NAME} PRIVATE depends)
