@@ -39,14 +39,17 @@ void initGersner(int n_waves, float max_amp, float max_freq, float max_speed)
 float gerstnerHeight(int x, int y)
 {
   float h = 0.0f;
-  for (int i = 0; i < num_waves; i++)
+  for (int i = 0; i < num_waves; i++) {
+    // float t = fmod((float)std::time(0), 2.0f * M_PI);
     h += waves[i].amp * sin((waves[i].freq * (x + y)) + (waves[i].speed * (float)std::time(0)));
+  }
   return h;
 }
 
+#ifdef STANDALONE
 int main()
 {
-  initGersner(4, 2.0f, 2.0f, 2.0f);
+  initGersner(4, 2.0f, 2.0f, 0.001f);
   for (int y = 0; y < 20; y++)
   {
     for (int x = 0; x < 20; x++)
@@ -56,3 +59,4 @@ int main()
 
   return 0;
 }
+#endif

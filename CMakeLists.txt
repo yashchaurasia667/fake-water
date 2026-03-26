@@ -15,12 +15,15 @@ file(GLOB IMGUI_BACKEND_SOURCES "${SRC}/imgui/backends/*.cpp")
 file(GLOB_RECURSE LIB_CODE_SRC "${CODE}/*.cpp")
 list(REMOVE_ITEM LIB_CODE_SRC "${CODE}/main.cpp")
 
+file(GLOB_RECURSE USR_DEP "${SRC}/learnOpengl/*.cpp")
+
 add_library(depends STATIC
+    # "${SRC}/learnOpengl/shader.cpp"
+    # "${SRC}/learnOpengl/camera.cpp"
+    # "${SRC}/learnOpengl/texture.cpp"
+    # "${SRC}/learnOpengl/utils.cpp"
     "${SRC}/glad.c"
-    "${SRC}/learnOpengl/shader.cpp"
-    "${SRC}/learnOpengl/camera.cpp"
-    "${SRC}/learnOpengl/texture.cpp"
-    "${SRC}/learnOpengl/utils.cpp"
+    ${USR_DEP}
     ${LIB_CODE_SRC}
     ${IMGUI_SRC}
     ${IMGUI_BACKEND_SOURCES}
@@ -45,5 +48,5 @@ target_link_libraries(depends PUBLIC
 )
 
 # 5. Final Executable
-add_executable(${PROJECT_NAME} "${CODE}/gerstner.cpp")
+add_executable(${PROJECT_NAME} "${CODE}/main.cpp")
 target_link_libraries(${PROJECT_NAME} PRIVATE depends)
