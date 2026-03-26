@@ -103,7 +103,7 @@ int main()
     vao.unbind();
 
     int num_waves = 4;
-    glm::vec3 *waves = initSumOfSines(num_waves, 0.5f, 0.7f, 0.001f);
+    glm::vec3 *waves = initSumOfSines(num_waves, 0.5f, 0.7f, 0.5f);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClearColor(0.4, 0.4, 0.4, 0.4);
