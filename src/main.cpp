@@ -6,7 +6,6 @@
 
 #include <iostream>
 #include <string>
-// #include <ctime>
 #include <random>
 
 #include <learnOpengl/shader.h>
@@ -19,12 +18,16 @@
 
 unsigned int scr_width = 1280, scr_height = 720;
 Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), 45.0f, 0.1f, 2.5f);
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_real_distribution dis(0.0f, 1.0f);
 
 void framebufferSizeCallback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void cursorPosCallback(GLFWwindow *window, double xposin, double yposin);
 void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_speed);
+float *initAngles(int n_waves);
 
 int main()
 {
@@ -102,8 +105,9 @@ int main()
     ebo.setData(num_indices * sizeof(unsigned int), indices, GL_STATIC_DRAW);
     vao.unbind();
 
-    int num_waves = 4;
-    glm::vec3 *waves = initSumOfSines(num_waves, 0.5f, 0.7f, 0.5f);
+    int num_waves = 10;
+    glm::vec3 *waves = initSumOfSines(num_waves, 1.5f, 0.5f, 2.0f);
+    float *angles = initAngles(num_waves);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClearColor(0.4, 0.4, 0.4, 0.4);
@@ -132,8 +136,8 @@ int main()
         shader.setFloat(("u_amp[" + std::to_string(i) + "]").c_str(), waves[i].x);
         shader.setFloat(("u_freq[" + std::to_string(i) + "]").c_str(), waves[i].y);
         shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(), waves[i].z);
+        shader.setFloat(("u_angle[" + std::to_string(i) + "]").c_str(), angles[i]);
       }
-      // shader.setFloat("u_time", (float)std::time(0));
       shader.setFloat("u_time", (float)glfwGetTime());
 
       vao.bind();
@@ -177,9 +181,6 @@ void scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
 
 glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_speed)
 {
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_real_distribution dis(0.0f, 1.0f);
   glm::vec3 *waves = new glm::vec3[n_waves];
 
   for (int i = 0; i < n_waves; i++)
@@ -189,4 +190,18 @@ glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_
     waves[i].z = max_speed * dis(gen);
   }
   return waves;
+}
+
+float *initAngles(int n_waves)
+{
+  float *angles = new float[n_waves];
+
+  float wind_angle = 3.14159f / 4.0f;
+
+  for (int i = 0; i < n_waves; i++)
+  {
+    float spread = (dis(gen) - 0.5f) * 1.0f;
+    angles[i] = wind_angle + spread;
+  }
+  return angles;
 }
