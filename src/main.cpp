@@ -17,7 +17,7 @@
 #include <learnOpengl/indexBuffer.h>
 
 unsigned int scr_width = 1280, scr_height = 720;
-Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), 45.0f, 0.1f, 2.5f);
+Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), 45.0f, 0.1f, 9.5f);
 std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_real_distribution dis(0.0f, 1.0f);
@@ -57,7 +57,7 @@ int main()
   {
     Shader shader("../shaders/vertex.vs", "../shaders/fragment.fs");
 
-    int num_edge_vertices = 100;
+    int num_edge_vertices = 1000;
     float interval = 0.4f;
     float *vertex_pos = new float[num_edge_vertices * num_edge_vertices * 3];
     int indx = 0;
@@ -105,11 +105,11 @@ int main()
     ebo.setData(num_indices * sizeof(unsigned int), indices, GL_STATIC_DRAW);
     vao.unbind();
 
-    int num_waves = 10;
-    glm::vec3 *waves = initSumOfSines(num_waves, 1.5f, 0.5f, 2.0f);
+    int num_waves = 6;
+    glm::vec3 *waves = initSumOfSines(num_waves, 0.8f, 1.2f, 2.0f);
     float *angles = initAngles(num_waves);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClearColor(0.4, 0.4, 0.4, 0.4);
     while (!glfwWindowShouldClose(window))
     {
@@ -121,15 +121,16 @@ int main()
 
       glm::mat4 model = glm::mat4(1.0f);
       glm::mat4 view = camera.getViewMatrix();
-      glm::mat4 projection = glm::perspective(camera.getFov(), (float)scr_width / (float)scr_height, 0.1f, 100.0f);
-      // model = glm::translate(model, glm::vec3(0.0f, 0.0f, 10.0f));
-      // model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+      glm::mat4 projection = glm::perspective(camera.getFov(), (float)scr_width / (float)scr_height, 0.1f, 1000.0f);
+      model = glm::translate(model, glm::vec3(-50.0f, -5.0f, -150.0f));
+      // model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
       shader.bind();
       shader.setMat4("model", model);
       shader.setMat4("view", view);
       shader.setMat4("projection", projection);
 
+      // vertex uniforms
       shader.setInt("u_numWaves", num_waves);
       for (int i = 0; i < num_waves; i++)
       {
@@ -139,6 +140,13 @@ int main()
         shader.setFloat(("u_angle[" + std::to_string(i) + "]").c_str(), angles[i]);
       }
       shader.setFloat("u_time", (float)glfwGetTime());
+      
+      // fragment uniforms
+      shader.setVec3("u_lightDir", glm::vec3(-0.4f, 0.7f, -0.8f));
+      shader.setVec3("u_lightColor", glm::vec3(1.0f));
+      shader.setVec3("u_waterColor", glm::vec3(0.1f, 0.4f, 0.6f));
+      shader.setVec3("u_viewPos", camera.getPos());
+      shader.setInt("u_shininess", 512);
 
       vao.bind();
       ebo.bind();
