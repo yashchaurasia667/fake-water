@@ -6,12 +6,14 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
-#define MAX_WAVES 12
+#define MAX_WAVES 32
 uniform int u_numWaves;
-uniform float u_amp[MAX_WAVES];
-uniform float u_freq[MAX_WAVES];
+uniform float u_amp;
+uniform float u_freq;
 uniform float u_speed[MAX_WAVES];
 uniform float u_angle[MAX_WAVES];
+uniform float u_amp_coeff;
+uniform float u_freq_coeff;
 uniform float u_time;
 
 out vec3 Normal;
@@ -22,20 +24,27 @@ void main() {
   float dhx = 0.0;
   float dhz = 0.0;
 
+  float curr_amp = u_amp;
+  float curr_freq= u_freq;
+
   for (int i = 0; i < u_numWaves; i++) {
     float phase = cos(u_angle[i]) * aPos.x + sin(u_angle[i]) * aPos.z;
-    float args = u_freq[i] * phase + u_speed[i] * u_time;
+    float args = curr_freq * phase + u_speed[i] * u_time;
     
-    // Calculate the new height: A * (e^sin(args) - 1)
-    float wave_height = exp(sin(args)) - 1.0;
-    height += u_amp[i] * wave_height;
+    // amp * e^(sin(fx + st)-1)
+    float wave_height = exp(sin(args) - 1.0);
+    height += curr_amp * wave_height;
 
     // d/dx [e^sin(x)] = e^sin(x) * cos(x)
-    float derivative = u_amp[i] * exp(sin(args)) * cos(args) * u_freq[i];
+    float derivative = curr_amp * exp(sin(args) - 1.0) * cos(args) * curr_freq;
 
     // Apply the spatial partial derivatives (Fixed the cos/sin mapping here!)
     dhx += derivative * cos(u_angle[i]); 
     dhz += derivative * sin(u_angle[i]); 
+
+    curr_amp = curr_amp * u_amp_coeff;
+    curr_freq = curr_freq * u_freq_coeff;
+
   }
 
   vec3 displaced = vec3(aPos.x, height, aPos.z);
