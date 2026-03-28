@@ -12,7 +12,7 @@ uniform vec3 u_viewPos;
 uniform int u_shininess;
 
 float specStrength = 1.5;
-vec3 ambient = vec3(0.2);
+vec3 ambient = vec3(0.4);
 
 void main() {
   vec3 viewDir = normalize(u_viewPos - FragPos);

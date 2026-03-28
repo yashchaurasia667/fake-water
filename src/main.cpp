@@ -105,8 +105,8 @@ int main()
     ebo.setData(num_indices * sizeof(unsigned int), indices, GL_STATIC_DRAW);
     vao.unbind();
 
-    int num_waves = 6;
-    glm::vec3 *waves = initSumOfSines(num_waves, 0.8f, 1.2f, 2.0f);
+    int num_waves = 12;
+    glm::vec3 *waves = initSumOfSines(num_waves, 1.5f, 0.3f, 2.0f);
     float *angles = initAngles(num_waves);
 
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -142,11 +142,11 @@ int main()
       shader.setFloat("u_time", (float)glfwGetTime());
       
       // fragment uniforms
-      shader.setVec3("u_lightDir", glm::vec3(-0.4f, 0.7f, -0.8f));
+      shader.setVec3("u_lightDir", glm::vec3(0.5f, 0.7f, 0.8f));
       shader.setVec3("u_lightColor", glm::vec3(1.0f));
-      shader.setVec3("u_waterColor", glm::vec3(0.1f, 0.4f, 0.6f));
+      shader.setVec3("u_waterColor", glm::vec3(0.1, 0.4, 0.5));
       shader.setVec3("u_viewPos", camera.getPos());
-      shader.setInt("u_shininess", 512);
+      shader.setInt("u_shininess", 128);
 
       vao.bind();
       ebo.bind();
