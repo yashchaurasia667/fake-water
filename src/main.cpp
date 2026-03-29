@@ -33,10 +33,10 @@ void processInput(GLFWwindow *window);
 void cursorPosCallback(GLFWwindow *window, double xposin, double yposin);
 void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
-void GLFWMouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
 
 glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_speed);
-float *initFloats(int n_waves);
+float *initRandoms(int n_waves);
+float *initAngles(int n_waves, float spread_degrees, float wind_dir_degrees);
 
 int main()
 {
@@ -126,17 +126,16 @@ int main()
 
     // imgui controlled wave params
     int num_waves = 32;
-    float max_speed = 2.5f;
-    float *speed = initFloats(num_waves);
-    float *angles = initFloats(num_waves);
-    float *amp_coeff = initFloats(1);
-    float *amp = initFloats(1), *freq = initFloats(1);
+    float min_speed = 0.4f, max_speed = 2.5f, spread = 70.0f, wind_dir = 0.0f;
+    float *speed = initRandoms(num_waves);
+    float *angles = initAngles(num_waves, spread, wind_dir);
+    float amp = dis(gen), freq = dis(gen), amp_coeff = 0.5f + dis(gen) * 0.25f;
 
     // imgui controlled light params
-    float ambient;
-    glm::vec3 light_dir = glm::vec3(0.5f, 0.7f, 0.8f);
+    float ambient = 0.32f;
+    glm::vec3 light_dir = glm::vec3(0.0f, 0.37f, 0.96f);
     glm::vec3 light_color = glm::vec3(1.0f);
-    glm::vec3 water_color = glm::vec3(0.1, 0.4, 0.5);
+    glm::vec3 water_color = glm::vec3(0.08, 0.33, 0.51);
 
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClearColor(0.4, 0.4, 0.4, 0.4);
@@ -156,15 +155,21 @@ int main()
         ImGui::Begin("Wave params");
 
         ImGui::SliderInt("num waves", &num_waves, 16, 160);
-        ImGui::SliderFloat("amp", amp, 0.0f, 10.0f, "%.2f");
-        ImGui::SliderFloat("freq", freq, 0.0f, 10.0f, "%.2f");
-        ImGui::SliderFloat("max_speed", &max_speed, -10.0f, 10.0f, "%.2f");
+        ImGui::SliderFloat("amp", &amp, 0.0f, 10.0f, "%.2f");
+        ImGui::SliderFloat("amp_coeff", &amp_coeff, 0.0f, 1.0f, "%.2f");
+        ImGui::SliderFloat("freq", &freq, 0.0f, 10.0f, "%.2f");
+        ImGui::SliderFloat("spread", &spread, 0.0f, 360.0f, "%.2f");
+        ImGui::SliderFloat("wind_dir", &wind_dir, 0.0f, 360.0f, "%.2f");
+        ImGui::SliderFloat("max_speed", &max_speed, 0.0f, 20.0f, "%.2f");
+        ImGui::SliderFloat("min_speed", &min_speed, 0.0f, 10.0f, "%.2f");
 
         if (ImGui::Button("Init wave"))
         {
           std::cout << "Re-initializing wave" << std::endl;
-          speed = initFloats(num_waves);
-          angles = initFloats(num_waves);
+          delete[] speed;
+          delete[] angles;
+          speed = initRandoms(num_waves);
+          angles = initAngles(num_waves, spread, wind_dir);
         }
         ImGui::End();
       }
@@ -200,7 +205,7 @@ int main()
       glm::mat4 model = glm::mat4(1.0f);
       glm::mat4 view = camera.getViewMatrix();
       glm::mat4 projection = glm::perspective(camera.getFov(), (float)scr_width / (float)scr_height, 0.1f, 1000.0f);
-      model = glm::translate(model, glm::vec3(-50.0f, -5.0f, -150.0f));
+      // model = glm::translate(model, glm::vec3(-50.0f, -5.0f, -150.0f));
       // model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
       shader.bind();
@@ -210,13 +215,13 @@ int main()
 
       // vertex uniforms
       shader.setInt("u_numWaves", num_waves);
-      shader.setFloat("u_amp", *amp);
-      shader.setFloat("u_freq", *freq);
-      shader.setFloat("u_amp_coeff", *amp_coeff);
-      shader.setFloat("u_freq_coeff", 2.0f - *amp_coeff);
+      shader.setFloat("u_amp", amp);
+      shader.setFloat("u_freq", freq);
+      shader.setFloat("u_amp_coeff", amp_coeff);
+      shader.setFloat("u_freq_coeff", 2.0f - amp_coeff);
       for (int i = 0; i < num_waves; i++)
       {
-        shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(), speed[i] * max_speed);
+        shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(), min_speed + speed[i] * max_speed);
         shader.setFloat(("u_angle[" + std::to_string(i) + "]").c_str(), angles[i]);
       }
       shader.setFloat("u_time", (float)glfwGetTime());
@@ -308,23 +313,25 @@ glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_
   return waves;
 }
 
-float *initFloats(int n_waves)
+float *initRandoms(int n_waves)
+{
+  float *randoms = new float[n_waves];
+  for (int i = 0; i < n_waves; i++)
+    randoms[i] = dis(gen);
+  return randoms;
+}
+
+float *initAngles(int n_waves, float spread_degrees, float wind_dir_degrees)
 {
   float *angles = new float[n_waves];
-
-  float wind_angle = 3.14159f / 4.0f;
+  float wind_dir = glm::radians(wind_dir_degrees);
+  float spread = glm::radians(spread_degrees);
 
   for (int i = 0; i < n_waves; i++)
   {
-    float spread = (dis(gen) - 0.5f) * 1.0f;
-    angles[i] = wind_angle + spread;
+    // random wind dir-> comment out line below to disable
+    wind_dir = glm::radians(dis(gen) * 180.0f);
+    angles[i] = wind_dir + (dis(gen) - 0.5f) * 2.0f * spread;
   }
   return angles;
-}
-
-void GLFWMouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
-{
-  ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
-  // if (Renderer::glfw_mouse_button_callback && !ImGui::GetIO().WantCaptureMouse)
-  //   Renderer::glfw_mouse_button_callback(window, button, action, mods);
 }

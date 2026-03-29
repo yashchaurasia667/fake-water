@@ -26,9 +26,11 @@ void main() {
 
   float curr_amp = u_amp;
   float curr_freq= u_freq;
+  float prev_derivative_x = 0;
+  float prev_derivative_z = 0;
 
   for (int i = 0; i < u_numWaves; i++) {
-    float phase = cos(u_angle[i]) * aPos.x + sin(u_angle[i]) * aPos.z;
+    float phase = cos(u_angle[i]) * (aPos.x + prev_derivative_x) + sin(u_angle[i]) * (aPos.z + prev_derivative_z);
     float args = curr_freq * phase + u_speed[i] * u_time;
     
     // amp * e^(sin(fx + st)-1)
@@ -44,7 +46,8 @@ void main() {
 
     curr_amp = curr_amp * u_amp_coeff;
     curr_freq = curr_freq * u_freq_coeff;
-
+    prev_derivative_x = dhx;
+    prev_derivative_z = dhz;
   }
 
   vec3 displaced = vec3(aPos.x, height, aPos.z);
