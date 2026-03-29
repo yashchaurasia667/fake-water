@@ -6,7 +6,7 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
-#define MAX_WAVES 32
+#define MAX_WAVES 160
 uniform int u_numWaves;
 uniform float u_amp;
 uniform float u_freq;

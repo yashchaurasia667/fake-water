@@ -4,6 +4,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <imgui/imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+
 #include <iostream>
 #include <string>
 #include <random>
@@ -18,6 +22,8 @@
 
 unsigned int scr_width = 1280, scr_height = 720;
 Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), 45.0f, 0.1f, 15.0f);
+bool camera_movement = false;
+
 std::random_device rd;
 std::mt19937 gen(rd());
 std::uniform_real_distribution dis(0.0f, 1.0f);
@@ -26,6 +32,9 @@ void framebufferSizeCallback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void cursorPosCallback(GLFWwindow *window, double xposin, double yposin);
 void scrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
+void GLFWMouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
+
 glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_speed);
 float *initFloats(int n_waves);
 
@@ -49,15 +58,25 @@ int main()
     return -1;
   }
   glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-  glfwSetCursorPosCallback(window, cursorPosCallback);
+  // glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+  // glfwSetCursorPosCallback(window, cursorPosCallback);
+  glfwSetMouseButtonCallback(window, mouseButtonCallback);
   glfwSetScrollCallback(window, scrollCallback);
   glEnable(GL_DEPTH_TEST);
+
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+
+  ImGui_ImplGlfw_InitForOpenGL(window, false);
+  ImGui_ImplOpenGL3_Init("#version 330 core");
 
   {
     Shader shader("../shaders/vertex.vs", "../shaders/fragment.fs");
 
-    int num_edge_vertices = 100;
+    int num_edge_vertices = 1000;
     float interval = 0.4f;
     float *vertex_pos = new float[num_edge_vertices * num_edge_vertices * 3];
     int indx = 0;
@@ -105,16 +124,19 @@ int main()
     ebo.setData(num_indices * sizeof(unsigned int), indices, GL_STATIC_DRAW);
     vao.unbind();
 
+    // imgui controlled wave params
     int num_waves = 32;
-    float max_speed = 2.5f, max_amp = 2.0f, max_freq = 0.4f;
+    float max_speed = 2.5f;
     float *speed = initFloats(num_waves);
     float *angles = initFloats(num_waves);
-    float *amp = initFloats(1);
-    float *freq = initFloats(1);
     float *amp_coeff = initFloats(1);
+    float *amp = initFloats(1), *freq = initFloats(1);
 
-    *amp *= max_amp;
-    *freq *= max_freq;
+    // imgui controlled light params
+    float ambient;
+    glm::vec3 light_dir = glm::vec3(0.5f, 0.7f, 0.8f);
+    glm::vec3 light_color = glm::vec3(1.0f);
+    glm::vec3 water_color = glm::vec3(0.1, 0.4, 0.5);
 
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glClearColor(0.4, 0.4, 0.4, 0.4);
@@ -126,10 +148,59 @@ int main()
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
       processInput(window);
 
+      // wave params
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
+      {
+        ImGui::Begin("Wave params");
+
+        ImGui::SliderInt("num waves", &num_waves, 16, 160);
+        ImGui::SliderFloat("amp", amp, 0.0f, 10.0f, "%.2f");
+        ImGui::SliderFloat("freq", freq, 0.0f, 10.0f, "%.2f");
+        ImGui::SliderFloat("max_speed", &max_speed, -10.0f, 10.0f, "%.2f");
+
+        if (ImGui::Button("Init wave"))
+        {
+          std::cout << "Re-initializing wave" << std::endl;
+          speed = initFloats(num_waves);
+          angles = initFloats(num_waves);
+        }
+        ImGui::End();
+      }
+
+      {
+        ImGui::Begin("Light params");
+
+        ImGui::SliderFloat("ambient", &ambient, 0.0f, 1.0f, "%.2f");
+
+        if (ImGui::CollapsingHeader("light direction"))
+        {
+          ImGui::SliderFloat("x", &light_dir.x, 0.0f, 1.0f, "%.2f");
+          ImGui::SliderFloat("y", &light_dir.y, 0.0f, 1.0f, "%.2f");
+          ImGui::SliderFloat("z", &light_dir.z, 0.0f, 1.0f, "%.2f");
+        }
+
+        if (ImGui::CollapsingHeader("light color"))
+        {
+          ImGui::SliderFloat("r", &light_color.x, 0.0f, 1.0f, "%.2f");
+          ImGui::SliderFloat("g", &light_color.y, 0.0f, 1.0f, "%.2f");
+          ImGui::SliderFloat("b", &light_color.z, 0.0f, 1.0f, "%.2f");
+        }
+
+        if (ImGui::CollapsingHeader("water color"))
+        {
+          ImGui::SliderFloat("wr", &water_color.x, 0.0f, 1.0f, "%.2f");
+          ImGui::SliderFloat("wg", &water_color.y, 0.0f, 1.0f, "%.2f");
+          ImGui::SliderFloat("wb", &water_color.z, 0.0f, 1.0f, "%.2f");
+        }
+        ImGui::End();
+      }
+
       glm::mat4 model = glm::mat4(1.0f);
       glm::mat4 view = camera.getViewMatrix();
       glm::mat4 projection = glm::perspective(camera.getFov(), (float)scr_width / (float)scr_height, 0.1f, 1000.0f);
-      // model = glm::translate(model, glm::vec3(-50.0f, -5.0f, -150.0f));
+      model = glm::translate(model, glm::vec3(-50.0f, -5.0f, -150.0f));
       // model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
       shader.bind();
@@ -141,30 +212,37 @@ int main()
       shader.setInt("u_numWaves", num_waves);
       shader.setFloat("u_amp", *amp);
       shader.setFloat("u_freq", *freq);
+      shader.setFloat("u_amp_coeff", *amp_coeff);
+      shader.setFloat("u_freq_coeff", 2.0f - *amp_coeff);
       for (int i = 0; i < num_waves; i++)
       {
-        shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(), speed[i]);
+        shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(), speed[i] * max_speed);
         shader.setFloat(("u_angle[" + std::to_string(i) + "]").c_str(), angles[i]);
       }
       shader.setFloat("u_time", (float)glfwGetTime());
 
       // fragment uniforms
-      shader.setVec3("u_lightDir", glm::vec3(0.5f, 0.7f, 0.8f));
-      shader.setVec3("u_lightColor", glm::vec3(1.0f));
-      shader.setVec3("u_waterColor", glm::vec3(0.1, 0.4, 0.5));
+      shader.setFloat("u_ambient", ambient);
+      shader.setVec3("u_lightDir", light_dir);
+      shader.setVec3("u_lightColor", light_color);
+      shader.setVec3("u_waterColor", water_color);
       shader.setVec3("u_viewPos", camera.getPos());
-      shader.setFloat("u_amp_coeff", *amp_coeff);
-      shader.setFloat("u_freq_coeff", 2.0f - *amp_coeff);
       shader.setInt("u_shininess", 128);
 
       vao.bind();
       ebo.bind();
       glDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_INT, 0);
 
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
       glfwSwapBuffers(window);
     }
   }
 
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
   glfwTerminate();
   return 0;
 }
@@ -196,6 +274,27 @@ void scrollCallback(GLFWwindow *window, double xoffset, double yoffset)
   camera.updateZoom(yoff);
 }
 
+void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+{
+  ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+  if (ImGui::GetIO().WantCaptureMouse)
+    return;
+
+  if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+  {
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, cursorPosCallback);
+    camera_movement = true;
+  }
+  else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE)
+  {
+    camera.firstMouse = true;
+    camera_movement = false;
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetCursorPosCallback(window, nullptr);
+  }
+}
+
 glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_speed)
 {
   glm::vec3 *waves = new glm::vec3[n_waves];
@@ -221,4 +320,11 @@ float *initFloats(int n_waves)
     angles[i] = wind_angle + spread;
   }
   return angles;
+}
+
+void GLFWMouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
+{
+  ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+  // if (Renderer::glfw_mouse_button_callback && !ImGui::GetIO().WantCaptureMouse)
+  //   Renderer::glfw_mouse_button_callback(window, button, action, mods);
 }

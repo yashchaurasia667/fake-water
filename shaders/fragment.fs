@@ -10,9 +10,10 @@ uniform vec3 u_lightColor;
 uniform vec3 u_waterColor;
 uniform vec3 u_viewPos;
 uniform int u_shininess;
+uniform float u_ambient;
 
 float specStrength = 1.5;
-vec3 ambient = vec3(0.4);
+vec3 ambient = vec3(u_ambient);
 
 void main() {
   vec3 viewDir = normalize(u_viewPos - FragPos);
