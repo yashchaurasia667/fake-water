@@ -1,17 +1,21 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
 #include <imgui/imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+
 #include <iostream>
 #include <string>
 #include <random>
 #include <vector>
+
 #include <learnOpengl/shader.h>
 #include <learnOpengl/camera.h>
 #include <learnOpengl/utils.h>
@@ -21,7 +25,7 @@
 #include <learnOpengl/indexBuffer.h>
 
 unsigned int scr_width = 1280, scr_height = 720;
-Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), 45.0f, 0.1f, 15.0f);
+Camera camera(glm::vec3(345.6f, 122.3f, 80.5f), 70.0f, 0.1f, 30.0f);
 bool camera_movement = false;
 bool framebufferResized = false;
 
@@ -153,13 +157,13 @@ int main()
     float amp = dis(gen), freq = dis(gen), amp_coeff = 0.5f + dis(gen) * 0.25f;
 
     // imgui controlled light params
-    float ambient = 0.32f;
+    float ambient = 0.19f;
     glm::vec3 light_dir = glm::vec3(-0.78f, 0.84, 0.60);
     glm::vec3 light_color = glm::vec3(1.0f);
     glm::vec3 water_color = glm::vec3(0.08f, 0.33f, 0.51f);
 
     // fog params
-    float fog_density = 0.012f;
+    float fog_density = 0.0024f;
     float horizon_band = 0.08f;                           // tune this: smaller = sharper horizon line, larger = wider blend
     glm::vec3 fog_color = glm::vec3(0.38f, 0.58f, 0.72f); // match your skybox horizon colour
 
@@ -362,6 +366,8 @@ void processInput(GLFWwindow *window)
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
   camera.processMovement(window);
+  glm::vec3 pos = camera.getPos();
+  std::cout << pos.x << ", " << pos.y << ", " << pos.z << std::endl;
 }
 
 void cursorPosCallback(GLFWwindow *window, double xposin, double yposin)
