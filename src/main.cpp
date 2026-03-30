@@ -1,21 +1,17 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
 #include <imgui/imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-
 #include <iostream>
 #include <string>
 #include <random>
 #include <vector>
-
 #include <learnOpengl/shader.h>
 #include <learnOpengl/camera.h>
 #include <learnOpengl/utils.h>
@@ -28,11 +24,12 @@ unsigned int scr_width = 1280, scr_height = 720;
 Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), 45.0f, 0.1f, 15.0f);
 bool camera_movement = false;
 bool framebufferResized = false;
+
 struct SceneFBO
 {
   unsigned int id;
   unsigned int colorTex;
-  unsigned int depthRbo;
+  unsigned int depthTex; // changed: renderbuffer -> texture so the screen shader can sample it
 };
 
 std::random_device rd;
@@ -117,11 +114,9 @@ int main()
         int v1 = v0 + 1;
         int v2 = v0 + num_edge_vertices;
         int v3 = v2 + 1;
-
         indices[idx++] = v0;
         indices[idx++] = v1;
         indices[idx++] = v2;
-
         indices[idx++] = v1;
         indices[idx++] = v3;
         indices[idx++] = v2;
@@ -144,7 +139,6 @@ int main()
     SceneFBO sceneFBO = createFBO(scr_width, scr_height);
 
     // Load cubemap
-    // GL_TEXTURE_CUBE_MAP_POSITIVE_X order: right left top bottom front back
     std::vector<std::string> faces = {
         "px.png", "nx.png",
         "py.png", "ny.png",
@@ -160,18 +154,21 @@ int main()
 
     // imgui controlled light params
     float ambient = 0.32f;
-    glm::vec3 light_dir = glm::vec3(0.0f, 0.37f, 0.96f);
+    glm::vec3 light_dir = glm::vec3(-0.78f, 0.84, 0.60);
     glm::vec3 light_color = glm::vec3(1.0f);
-    glm::vec3 water_color = glm::vec3(0.08, 0.33, 0.51);
+    glm::vec3 water_color = glm::vec3(0.08f, 0.33f, 0.51f);
+
+    // fog params
+    float fog_density = 0.012f;
+    float horizon_band = 0.08f;                           // tune this: smaller = sharper horizon line, larger = wider blend
+    glm::vec3 fog_color = glm::vec3(0.38f, 0.58f, 0.72f); // match your skybox horizon colour
 
     glClearColor(0.4, 0.4, 0.4, 1.0);
 
-    // Render loop
     while (!glfwWindowShouldClose(window))
     {
       camera.updateFrame();
 
-      // Recreate FBO if the window was resized
       if (framebufferResized)
       {
         deleteFBO(sceneFBO);
@@ -182,13 +179,12 @@ int main()
       glfwPollEvents();
       processInput(window);
 
-      // ImGui new frame + UI panels
       ImGui_ImplOpenGL3_NewFrame();
       ImGui_ImplGlfw_NewFrame();
       ImGui::NewFrame();
+
       {
         ImGui::Begin("Wave params");
-
         ImGui::SliderInt("num waves", &num_waves, 16, 160);
         ImGui::SliderFloat("amp", &amp, 0.0f, 10.0f, "%.2f");
         ImGui::SliderFloat("amp_coeff", &amp_coeff, 0.0f, 1.0f, "%.2f");
@@ -197,7 +193,6 @@ int main()
         ImGui::SliderFloat("wind_dir", &wind_dir, 0.0f, 360.0f, "%.2f");
         ImGui::SliderFloat("max_speed", &max_speed, 0.0f, 20.0f, "%.2f");
         ImGui::SliderFloat("min_speed", &min_speed, 0.0f, 10.0f, "%.2f");
-
         if (ImGui::Button("Init wave"))
         {
           std::cout << "Re-initializing wave" << std::endl;
@@ -210,9 +205,7 @@ int main()
       }
       {
         ImGui::Begin("Light params");
-
         ImGui::SliderFloat("ambient", &ambient, 0.0f, 1.0f, "%.2f");
-
         if (ImGui::CollapsingHeader("light direction"))
         {
           ImGui::SliderFloat("x", &light_dir.x, -1.0f, 1.0f, "%.2f");
@@ -233,13 +226,26 @@ int main()
         }
         ImGui::End();
       }
+      {
+        ImGui::Begin("Fog params");
+        ImGui::SliderFloat("density", &fog_density, 0.0f, 0.1f, "%.4f");
+        ImGui::SliderFloat("horizon band", &horizon_band, 0.0f, 0.5f, "%.3f");
+        if (ImGui::CollapsingHeader("fog color"))
+        {
+          ImGui::SliderFloat("fr", &fog_color.x, 0.0f, 1.0f, "%.3f");
+          ImGui::SliderFloat("fg", &fog_color.y, 0.0f, 1.0f, "%.3f");
+          ImGui::SliderFloat("fb", &fog_color.z, 0.0f, 1.0f, "%.3f");
+        }
+        ImGui::End();
+      }
 
-      // Shared matrices
       glm::mat4 model = glm::mat4(1.0f);
       glm::mat4 view = camera.getViewMatrix();
-      glm::mat4 projection = glm::perspective(camera.getFov(), (float)scr_width / (float)scr_height, 0.1f, 1000.0f);
+      glm::mat4 projection = glm::perspective(camera.getFov(),
+                                              (float)scr_width / (float)scr_height,
+                                              0.1f, 1000.0f);
 
-      // Pass 1: render waves into the FBO
+      // Pass 1: render waves into the FBO (unchanged)
       glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO.id);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -247,7 +253,6 @@ int main()
       shader.setMat4("model", model);
       shader.setMat4("view", view);
       shader.setMat4("projection", projection);
-
       shader.setInt("u_numWaves", num_waves);
       shader.setFloat("u_amp", amp);
       shader.setFloat("u_freq", freq);
@@ -255,11 +260,11 @@ int main()
       shader.setFloat("u_freq_coeff", 2.0f - amp_coeff);
       for (int i = 0; i < num_waves; i++)
       {
-        shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(), min_speed + speed[i] * max_speed);
+        shader.setFloat(("u_speed[" + std::to_string(i) + "]").c_str(),
+                        min_speed + speed[i] * max_speed);
         shader.setFloat(("u_angle[" + std::to_string(i) + "]").c_str(), angles[i]);
       }
       shader.setFloat("u_time", (float)glfwGetTime());
-
       shader.setFloat("u_ambient", ambient);
       shader.setVec3("u_lightDir", light_dir);
       shader.setVec3("u_lightColor", light_color);
@@ -271,56 +276,63 @@ int main()
       ebo.bind();
       glDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_INT, 0);
 
-      // Pass 2: composite to default framebuffer
+      // Pass 2: blit depth, draw fullscreen quad with fog
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-      // Blit the FBO's depth into the default framebuffer so the skybox
-      // can be depth-tested against actual wave geometry depths.
       glBindFramebuffer(GL_READ_FRAMEBUFFER, sceneFBO.id);
       glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-      glBlitFramebuffer(0, 0, scr_width, scr_height, 0, 0, scr_width, scr_height, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+      glBlitFramebuffer(0, 0, scr_width, scr_height,
+                        0, 0, scr_width, scr_height,
+                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
       glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-      // Draw fullscreen quad — depth test and writes disabled so we
-      // don't clobber the blitted depth values needed by the skybox.
       glDisable(GL_DEPTH_TEST);
       glDepthMask(GL_FALSE);
+
+      // Precompute inverse matrices once per frame
+      glm::mat4 invProjection = glm::inverse(projection);
+      glm::mat3 invViewRot = glm::transpose(glm::mat3(view)); // view rotation is orthogonal so inverse == transpose
+
       screenShader.bind();
       screenShader.setInt("u_screenTexture", 0);
+      screenShader.setInt("u_depthTexture", 1);
+      screenShader.setFloat("u_near", 0.1f);
+      screenShader.setFloat("u_far", 1000.0f);
+      screenShader.setFloat("u_fogDensity", fog_density);
+      screenShader.setFloat("u_horizonBand", horizon_band);
+      screenShader.setVec3("u_fogColor", fog_color);
+      screenShader.setMat4("u_invProjection", invProjection);
+      screenShader.setMat4("u_invViewRot", invViewRot);
+
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D, sceneFBO.colorTex);
+      glActiveTexture(GL_TEXTURE1);
+      glBindTexture(GL_TEXTURE_2D, sceneFBO.depthTex);
 
       renderQuad();
+
       glDepthMask(GL_TRUE);
       glEnable(GL_DEPTH_TEST);
 
-      // Pass 3: skybox
-      // Strip translation from the view matrix so the skybox is always
-      // centred on the camera. Use GL_LEQUAL so fragments at depth 1.0
-      // (background) pass, while wave-covered fragments (depth < 1.0)
-      // are discarded.
-
+      // Pass 3: skybox (unchanged)
       glDepthFunc(GL_LEQUAL);
       skyboxShader.bind();
-      glm::mat4 skyView = glm::mat4(glm::mat3(view)); // translation stripped
+      glm::mat4 skyView = glm::mat4(glm::mat3(view));
       skyboxShader.setMat4("view", skyView);
       skyboxShader.setMat4("projection", projection);
       skyboxShader.setInt("u_skybox", 0);
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-
       renderCube();
-      glDepthFunc(GL_LESS); // restore default
+      glDepthFunc(GL_LESS);
 
-      // ImGui render (always last, always to default framebuffer)
       ImGui::Render();
       ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
       glfwSwapBuffers(window);
     }
 
-    // Cleanup
     delete[] vertex_pos;
     delete[] indices;
     delete[] speed;
@@ -337,14 +349,12 @@ int main()
   return 0;
 }
 
-// Callbacks
-
 void framebufferSizeCallback(GLFWwindow *window, int width, int height)
 {
   scr_width = width;
   scr_height = height;
   glViewport(0, 0, width, height);
-  framebufferResized = true; // triggers FBO recreation at the start of next frame
+  framebufferResized = true;
 }
 
 void processInput(GLFWwindow *window)
@@ -385,8 +395,6 @@ void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
   }
 }
 
-// Wave init helpers
-
 glm::vec3 *initSumOfSines(int n_waves, float max_amp, float max_freq, float max_speed)
 {
   glm::vec3 *waves = new glm::vec3[n_waves];
@@ -412,17 +420,16 @@ float *initAngles(int n_waves, float spread_degrees, float wind_dir_degrees)
   float *angles = new float[n_waves];
   float wind_dir = glm::radians(wind_dir_degrees);
   float spread = glm::radians(spread_degrees);
-
   for (int i = 0; i < n_waves; i++)
   {
-    wind_dir = glm::radians(dis(gen) * 180.0f); // random wind dir
+    wind_dir = glm::radians(dis(gen) * 180.0f);
     angles[i] = wind_dir + (dis(gen) - 0.5f) * 2.0f * spread;
   }
   return angles;
 }
 
-// fbo/skybox helpers
-
+// Changed: depth renderbuffer -> depth texture so the screen shader can sample it.
+// GL_DEPTH_COMPONENT24 textures are still blittable, so the skybox depth blit is unaffected.
 SceneFBO createFBO(unsigned int width, unsigned int height)
 {
   SceneFBO fbo;
@@ -430,7 +437,6 @@ SceneFBO createFBO(unsigned int width, unsigned int height)
   glGenFramebuffers(1, &fbo.id);
   glBindFramebuffer(GL_FRAMEBUFFER, fbo.id);
 
-  // Color texture attachment
   glGenTextures(1, &fbo.colorTex);
   glBindTexture(GL_TEXTURE_2D, fbo.colorTex);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
@@ -438,11 +444,13 @@ SceneFBO createFBO(unsigned int width, unsigned int height)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo.colorTex, 0);
 
-  // Depth renderbuffer attachment (GL_DEPTH_COMPONENT24 is blittable to the default FB)
-  glGenRenderbuffers(1, &fbo.depthRbo);
-  glBindRenderbuffer(GL_RENDERBUFFER, fbo.depthRbo);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fbo.depthRbo);
+  glGenTextures(1, &fbo.depthTex);
+  glBindTexture(GL_TEXTURE_2D, fbo.depthTex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
+               width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, fbo.depthTex, 0);
 
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     std::cerr << "ERROR::FBO: Framebuffer not complete!" << std::endl;
@@ -453,20 +461,18 @@ SceneFBO createFBO(unsigned int width, unsigned int height)
 
 void deleteFBO(SceneFBO &fbo)
 {
-  glDeleteRenderbuffers(1, &fbo.depthRbo);
+  glDeleteTextures(1, &fbo.depthTex);
   glDeleteTextures(1, &fbo.colorTex);
   glDeleteFramebuffers(1, &fbo.id);
 }
 
-// faces must be in the order:
-//   right, left, top, bottom, front, back
 unsigned int loadCubemap(const std::string &basePath, const std::vector<std::string> &faces)
 {
   unsigned int textureID;
   glGenTextures(1, &textureID);
   glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
 
-  stbi_set_flip_vertically_on_load(false); // cubemaps must NOT be flipped
+  stbi_set_flip_vertically_on_load(false);
   int width, height, nrChannels;
   for (unsigned int i = 0; i < faces.size(); i++)
   {
