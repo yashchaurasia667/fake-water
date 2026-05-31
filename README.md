@@ -5,6 +5,7 @@ An attempt at making a fluid looking visual simulation using wave functions and 
 ## 📷 Screenshots
 ![Screenshot1](./images/ss1.png)
 ![Screenshot2](./images/ss2.png)
+![Screenshot3](./images/ss3.png)
 
 ## 🌟 Features
 * **Modern C++ Architecture:** Clean, object-oriented design using modern C++ standards.
