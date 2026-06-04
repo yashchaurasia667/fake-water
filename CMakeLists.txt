@@ -15,7 +15,7 @@ file(GLOB IMGUI_BACKEND_SOURCES "${SRC}/imgui/backends/*.cpp")
 file(GLOB_RECURSE LIB_CODE_SRC "${CODE}/*.cpp")
 list(REMOVE_ITEM LIB_CODE_SRC "${CODE}/main.cpp")
 
-file(GLOB_RECURSE USR_DEP "${SRC}/learnOpengl/*.cpp")
+file(GLOB_RECURSE USR_DEP "${SRC}/custom/*.cpp")
 
 add_library(depends STATIC
     # "${SRC}/learnOpengl/shader.cpp"
@@ -33,6 +33,7 @@ add_library(depends STATIC
 target_include_directories(depends PUBLIC 
     ${CODE}
     ${INCLUDE}
+    "${INCLUDE}/custom"
     "${INCLUDE}/imgui"
     "${INCLUDE}/imgui/backends"
 )

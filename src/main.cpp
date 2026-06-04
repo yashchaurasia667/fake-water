@@ -16,13 +16,13 @@
 #include <random>
 #include <vector>
 
-#include <learnOpengl/shader.h>
-#include <learnOpengl/camera.h>
-#include <learnOpengl/utils.h>
-#include <learnOpengl/vertexArray.h>
-#include <learnOpengl/vertexBuffer.h>
-#include <learnOpengl/vertexBufferLayout.h>
-#include <learnOpengl/indexBuffer.h>
+#include <shader.h>
+#include <camera.h>
+#include <utils.h>
+#include <vertexArray.h>
+#include <vertexBuffer.h>
+#include <vertexBufferLayout.h>
+#include <indexBuffer.h>
 
 unsigned int scr_width = 1280, scr_height = 720;
 Camera camera(glm::vec3(345.6f, 122.3f, 80.5f), 70.0f, 0.1f, 30.0f);
